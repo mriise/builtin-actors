@@ -180,6 +180,7 @@ impl<'db, BS: Blockstore> ExpirationQueue<'db, BS> {
     /// Adds a collection of sectors to their on-time target expiration entries (quantized).
     /// The sectors are assumed to be active (non-faulty).
     /// Returns the sector numbers, power, and pledge added.
+    //XXX CurrentEpoch needed here
     pub fn add_active_sectors<'a>(
         &mut self,
         sectors: impl IntoIterator<Item = &'a SectorOnChainInfo>,
@@ -215,6 +216,7 @@ impl<'db, BS: Blockstore> ExpirationQueue<'db, BS> {
     /// The sectors being rescheduled are assumed to be not faulty, and hence are removed from and re-scheduled for on-time
     /// rather than early expiration.
     /// The sectors' power and pledge are assumed not to change, despite the new expiration.
+    //XXX CurrentEpoch needed here
     pub fn reschedule_expirations(
         &mut self,
         new_expiration: ChainEpoch,
@@ -246,6 +248,7 @@ impl<'db, BS: Blockstore> ExpirationQueue<'db, BS> {
     /// The sectors must not be currently faulty, so must be registered as expiring on-time rather than early.
     /// The pledge for the now-early sectors is removed from the queue.
     /// Returns the total power represented by the sectors.
+    //XXX CurrentEpoch needed here
     pub fn reschedule_as_faults(
         &mut self,
         new_expiration: ChainEpoch,
@@ -358,6 +361,7 @@ impl<'db, BS: Blockstore> ExpirationQueue<'db, BS> {
         )?;
 
         // Trim the rescheduled epochs from the queue.
+        // XXX: this is problematic as it would remove the state needed for expiration separation
         self.amt.batch_delete(rescheduled_epochs, true)?;
 
         Ok(())
@@ -368,6 +372,7 @@ impl<'db, BS: Blockstore> ExpirationQueue<'db, BS> {
     /// Pledge for the sectors is re-added as on-time.
     /// Power for the sectors is changed from faulty to active (whether rescheduled or not).
     /// Returns the newly-recovered power. Fails if any sectors are not found in the queue.
+    //XXX CurrentEpoch needed here
     pub fn reschedule_recovered(
         &mut self,
         sectors: Vec<SectorOnChainInfo>,
@@ -447,6 +452,7 @@ impl<'db, BS: Blockstore> ExpirationQueue<'db, BS> {
     /// The sectors being replaced must not be faulty, so must be scheduled for on-time rather than early expiration.
     /// The sectors added are assumed to be not faulty.
     /// Returns the old a new sector number bitfields, and delta to power and pledge, new minus old.
+    //XXX CurrentEpoch needed here
     pub fn replace_sectors(
         &mut self,
         old_sectors: &[SectorOnChainInfo],
@@ -473,6 +479,7 @@ impl<'db, BS: Blockstore> ExpirationQueue<'db, BS> {
     /// The sectors may be active or faulty, and scheduled either for on-time or early termination.
     /// Returns the aggregate of removed sectors and power, and recovering power.
     /// Fails if any sectors are not found in the queue.
+    //XXX CurrentEpoch needed here
     pub fn remove_sectors(
         &mut self,
         policy: &Policy,
@@ -599,7 +606,6 @@ impl<'db, BS: Blockstore> ExpirationQueue<'db, BS> {
 
     /// Removes and aggregates entries from the queue up to and including some epoch.
     pub fn pop_until(&mut self, until: ChainEpoch) -> anyhow::Result<ExpirationSet> {
-
         let mut result = ExpirationSet::empty();
         let mut popped_keys = Vec::<u64>::new();
 
@@ -665,6 +671,7 @@ impl<'db, BS: Blockstore> ExpirationQueue<'db, BS> {
         Ok(())
     }
 
+    //XXX CurrentEpoch needed here
     fn remove_active_sectors(
         &mut self,
         sectors: &[SectorOnChainInfo],
@@ -769,6 +776,7 @@ impl<'db, BS: Blockstore> ExpirationQueue<'db, BS> {
     /// (i.e. they have been rescheduled) traverse expiration sets for groups where these
     /// sectors actually expire.
     /// Groups will be returned in expiration order, earliest first.
+    //XXX CurrentEpoch needed here
     fn find_sectors_by_expiration(
         &self,
         sector_size: SectorSize,
@@ -868,6 +876,7 @@ struct SectorEpochSet {
 /// sorted by expiration epoch, quantized.
 ///
 /// Note: While the result is sorted by epoch, the order of per-epoch sectors is maintained.
+//XXX CurrentEpoch needed here
 fn group_new_sectors_by_declared_expiration<'a>(
     sector_size: SectorSize,
     sectors: impl IntoIterator<Item = &'a SectorOnChainInfo>,
@@ -876,7 +885,7 @@ fn group_new_sectors_by_declared_expiration<'a>(
     let mut sectors_by_expiration = BTreeMap::<ChainEpoch, Vec<&SectorOnChainInfo>>::new();
 
     for sector in sectors {
-        let q_expiration = quant.quantize_up(sector.expiration);
+        let q_expiration = quant.quantize_up(sector.exspiration);
         sectors_by_expiration.entry(q_expiration).or_default().push(sector);
     }
 

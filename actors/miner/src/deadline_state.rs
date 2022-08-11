@@ -357,13 +357,12 @@ impl Deadline {
         self.early_terminations |= &new_early_terminations;
 
         // Update live sector count.
-        let on_time_count =  all_epirations.on_time_sectors.len();
+        let on_time_count = all_epirations.on_time_sectors.len();
         let early_count = all_epirations.early_sectors.len();
         self.live_sectors -= on_time_count + early_count;
 
         self.faulty_power -= &all_epirations.faulty_power;
         Ok(all_epirations)
-
     }
 
     /// Adds sectors to a deadline. It's the caller's responsibility to make sure
