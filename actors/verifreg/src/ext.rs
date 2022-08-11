@@ -6,6 +6,8 @@ use fvm_shared::bigint::{bigint_ser, BigInt};
 pub mod datacap {
     use super::*;
 
+    pub const TOKEN_PRECISION: u64 = 1_000_000_000_000_000_000;
+
     #[repr(u64)]
     pub enum Method {
         // Non-standard.

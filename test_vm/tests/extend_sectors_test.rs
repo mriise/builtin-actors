@@ -6,7 +6,7 @@ use fil_actor_miner::{
     State as MinerState,
 };
 use fil_actor_power::{Method as PowerMethod, UpdateClaimedPowerParams};
-use fil_actor_verifreg::{AddVerifierClientParams, Method as VerifregMethod};
+use fil_actor_verifreg::{AddVerifierClientParams, DataCap, Method as VerifregMethod};
 use fil_actors_runtime::cbor::serialize;
 use fil_actors_runtime::runtime::Policy;
 use fil_actors_runtime::test_utils::make_sealed_cid;
@@ -57,10 +57,10 @@ fn extend_sector_with_deals() {
 
     // register verifier then verified client
 
-    add_verifier(&v, verifier, StoragePower::from((32_u64 << 40) as u128));
+    add_verifier(&v, verifier, &DataCap::from(StoragePower::from((32_u64 << 40) as u128)));
     let add_client_params = AddVerifierClientParams {
         address: verified_client,
-        allowance: StoragePower::from((32_u64 << 40) as u64),
+        allowance: DataCap::from(StoragePower::from((32_u64 << 40) as u64)),
     };
     apply_ok(
         &v,

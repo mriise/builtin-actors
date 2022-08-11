@@ -8,7 +8,7 @@ use fil_actor_market::{
     Method, PublishStorageDealsParams, PublishStorageDealsReturn, State, WithdrawBalanceParams,
     PROPOSALS_AMT_BITWIDTH, STATES_AMT_BITWIDTH,
 };
-use fil_actor_verifreg::UseBytesParams;
+use fil_actor_verifreg::{DataCap, UseBytesParams};
 use fil_actors_runtime::cbor::deserialize;
 use fil_actors_runtime::network::EPOCHS_IN_DAY;
 use fil_actors_runtime::runtime::{Policy, Runtime};
@@ -782,7 +782,7 @@ fn provider_and_client_addresses_are_resolved_before_persisting_state_and_sent_t
     // request is sent to the VerigReg actor using the resolved address
     let param = RawBytes::serialize(UseBytesParams {
         address: client_resolved,
-        deal_size: BigInt::from(deal.piece_size.0),
+        deal_size: DataCap::from(BigInt::from(deal.piece_size.0)),
     })
     .unwrap();
 

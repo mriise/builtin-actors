@@ -64,10 +64,10 @@ fn setup(store: &'_ MemoryBlockstore) -> (VM<'_>, Addrs, ChainEpoch) {
     .0;
 
     // setup verified client
-    add_verifier(&v, verifier, StoragePower::from((32_u64 << 40) as u128));
+    add_verifier(&v, verifier, &StoragePower::from((32_u64 << 40) as u128).into());
     let add_client_params = AddVerifierClientParams {
         address: verified_client,
-        allowance: StoragePower::from((1_u64 << 32) as u64),
+        allowance: StoragePower::from((1_u64 << 32) as u64).into(),
     };
     apply_ok(
         &v,

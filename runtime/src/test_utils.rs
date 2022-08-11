@@ -891,7 +891,7 @@ impl Runtime<MemoryBlockstore> for MockRuntime {
 
         assert!(
             !self.expectations.borrow_mut().expect_sends.is_empty(),
-            "unexpected expectedMessage to: {:?} method: {:?}, value: {:?}, params: {:?}",
+            "unexpected message to: {:?} method: {:?}, value: {:?}, params: {:?}",
             to,
             method,
             value,
@@ -905,9 +905,9 @@ impl Runtime<MemoryBlockstore> for MockRuntime {
                 && expected_msg.method == method
                 && expected_msg.params == params
                 && expected_msg.value == value,
-            "expectedMessage being sent does not match expectation.\n\
-             Message  - to: {:?}, method: {:?}, value: {:?}, params: {:?}\n\
-             Expected - to: {:?}, method: {:?}, value: {:?}, params: {:?}",
+            "message sent does not match expectation.\n\
+             message  - to: {:?}, method: {:?}, value: {:?}, params: {:?}\n\
+             expected - to: {:?}, method: {:?}, value: {:?}, params: {:?}",
             to,
             method,
             value,

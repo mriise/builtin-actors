@@ -6,7 +6,6 @@ use fvm_ipld_blockstore::Blockstore;
 use fvm_ipld_encoding::tuple::*;
 use fvm_ipld_encoding::Cbor;
 use fvm_shared::address::Address;
-use fvm_shared::bigint::bigint_ser::BigIntDe;
 use fvm_shared::error::ExitCode;
 use fvm_shared::HAMT_BIT_WIDTH;
 
@@ -44,11 +43,11 @@ impl State {
         cap: &DataCap,
     ) -> Result<(), ActorError> {
         let mut verifiers =
-            make_map_with_root_and_bitwidth::<_, BigIntDe>(&self.verifiers, store, HAMT_BIT_WIDTH)
+            make_map_with_root_and_bitwidth::<_, DataCap>(&self.verifiers, store, HAMT_BIT_WIDTH)
                 .context_code(ExitCode::USR_ILLEGAL_STATE, "failed to load verifiers")?;
         // .context("failed to load verifiers")?;
         verifiers
-            .set(verifier.to_bytes().into(), BigIntDe(cap.clone()))
+            .set(verifier.to_bytes().into(), cap.clone())
             .context_code(ExitCode::USR_ILLEGAL_STATE, "failed to set verifier")?;
         self.verifiers = verifiers
             .flush()
@@ -62,7 +61,7 @@ impl State {
         verifier: &Address,
     ) -> Result<(), ActorError> {
         let mut verifiers =
-            make_map_with_root_and_bitwidth::<_, BigIntDe>(&self.verifiers, store, HAMT_BIT_WIDTH)
+            make_map_with_root_and_bitwidth::<_, DataCap>(&self.verifiers, store, HAMT_BIT_WIDTH)
                 .context_code(ExitCode::USR_ILLEGAL_STATE, "failed to load verifiers")?;
 
         verifiers
@@ -82,12 +81,12 @@ impl State {
         verifier: &Address,
     ) -> Result<Option<DataCap>, ActorError> {
         let verifiers =
-            make_map_with_root_and_bitwidth::<_, BigIntDe>(&self.verifiers, store, HAMT_BIT_WIDTH)
+            make_map_with_root_and_bitwidth::<_, DataCap>(&self.verifiers, store, HAMT_BIT_WIDTH)
                 .context_code(ExitCode::USR_ILLEGAL_STATE, "failed to load verifiers")?;
         let allowance = verifiers
             .get(&verifier.to_bytes())
             .context_code(ExitCode::USR_ILLEGAL_STATE, "failed to get verifier")?;
-        Ok(allowance.map(|a| a.0.clone() as DataCap)) // TODO: can I avoid the clone?
+        Ok(allowance.cloned())
     }
 }
 

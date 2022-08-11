@@ -28,13 +28,10 @@ pub use self::types::*;
 #[cfg(feature = "fil-actor")]
 fil_actors_runtime::wasm_trampoline!(Actor);
 
-mod ext;
+pub mod ext;
 mod state;
 pub mod testing;
 mod types;
-
-/// TODO: align on DataCap vs TokenAmount type
-/// TODO: restrict token to whole units
 
 /// Account actor methods available
 #[derive(FromPrimitive)]
@@ -77,7 +74,7 @@ impl Actor {
         BS: Blockstore,
         RT: Runtime<BS>,
     {
-        if params.allowance < rt.policy().minimum_verified_deal_size {
+        if params.allowance < DataCap::from(&rt.policy().minimum_verified_deal_size) {
             return Err(actor_error!(
                 illegal_argument,
                 "Allowance {} below minimum deal size for add verifier {}",
@@ -87,7 +84,7 @@ impl Actor {
         }
 
         let verifier = resolve_to_id_addr(rt, &params.address).context_code(
-            ExitCode::USR_ILLEGAL_STATE, // FIXME: ILLEGAL_ARGUMENT?
+            ExitCode::USR_ILLEGAL_STATE,
             format!("failed to resolve addr {} to ID addr", params.address),
         )?;
 
@@ -122,7 +119,7 @@ impl Actor {
         RT: Runtime<BS>,
     {
         let verifier = resolve_to_id_addr(rt, &verifier_addr).context_code(
-            ExitCode::USR_ILLEGAL_STATE, // FIXME: ILLEGAL_ARGUMENT?
+            ExitCode::USR_ILLEGAL_STATE,
             format!("failed to resolve addr {} to ID addr", verifier_addr),
         )?;
 
@@ -145,7 +142,7 @@ impl Actor {
         // The caller will be verified by checking table below
         rt.validate_immediate_caller_accept_any()?;
 
-        if params.allowance < rt.policy().minimum_verified_deal_size {
+        if params.allowance < DataCap::from(&rt.policy().minimum_verified_deal_size) {
             return Err(actor_error!(
                 illegal_argument,
                 "allowance {} below MinVerifiedDealSize for add verified client {}",
@@ -166,15 +163,14 @@ impl Actor {
 
         // Validate caller is one of the verifiers, i.e. has an allowance (even if zero).
         let verifier = rt.message().caller();
-        let verifier_cap = st.get_verifier_cap(rt.store(), &verifier)?.ok_or_else(|| {
-            // TODO: existing code is NOT_FOUND, but FORBIDDEN would be better
-            actor_error!(not_found, "caller {} is not a verifier", verifier)
-        })?;
+        let verifier_cap = st
+            .get_verifier_cap(rt.store(), &verifier)?
+            .ok_or_else(|| actor_error!(not_found, "caller {} is not a verifier", verifier))?;
 
         // Disallow existing verifiers as clients.
         if st.get_verifier_cap(rt.store(), &client)?.is_some() {
             return Err(actor_error!(
-                illegal_argument, // TODO: change to FORBIDDEN?
+                illegal_argument,
                 "verifier {} cannot be added as a verified client",
                 client
             ));
@@ -198,7 +194,7 @@ impl Actor {
         })?;
 
         // Credit client token allowance.
-        mint(rt, &st.token, &client, &params.allowance).context(format!(
+        mint(rt, &st.token, &client, &params.allowance.to_tokens()).context(format!(
             "failed to mint {} data cap to client {}",
             &params.allowance, client
         ))?;
@@ -216,11 +212,11 @@ impl Actor {
         rt.validate_immediate_caller_is(std::iter::once(&*STORAGE_MARKET_ACTOR_ADDR))?;
 
         let client = resolve_to_id_addr(rt, &params.address).context_code(
-            ExitCode::USR_ILLEGAL_STATE, // FIXME:  ILLEGAL_ARGUMENT?
+            ExitCode::USR_ILLEGAL_STATE,
             format!("failed to resolve addr {} to ID addr", params.address),
         )?;
 
-        if params.deal_size < rt.policy().minimum_verified_deal_size {
+        if params.deal_size < DataCap::from(&rt.policy().minimum_verified_deal_size) {
             return Err(actor_error!(
                 illegal_argument,
                 "use bytes {} is below minimum {}",
@@ -232,13 +228,14 @@ impl Actor {
         let st: State = rt.state()?;
 
         // Deduct from client's token allowance.
-        let remaining = destroy(rt, &st.token, &client, &params.deal_size).context(format!(
-            "failed to deduct {} from allowance for {}",
-            &params.deal_size, &client
-        ))?;
+        let remaining = destroy(rt, &st.token, &client, &params.deal_size.to_tokens()).context(
+            format!("failed to deduct {} from allowance for {}", &params.deal_size, &client),
+        )?;
 
         // Destroy any remaining balance below minimum verified deal size.
-        if remaining < rt.policy().minimum_verified_deal_size {
+        if remaining.is_positive()
+            && remaining < DataCap::from(&rt.policy().minimum_verified_deal_size).to_tokens()
+        {
             destroy(rt, &st.token, &client, &remaining).context(format!(
                 "failed to destroy remaining {} from allowance for {}",
                 &remaining, &client
@@ -255,7 +252,7 @@ impl Actor {
         RT: Runtime<BS>,
     {
         rt.validate_immediate_caller_is(std::iter::once(&*STORAGE_MARKET_ACTOR_ADDR))?;
-        if params.deal_size < rt.policy().minimum_verified_deal_size {
+        if params.deal_size < DataCap::from(&rt.policy().minimum_verified_deal_size) {
             return Err(actor_error!(
                 illegal_argument,
                 "Below minimum VerifiedDealSize requested in RestoreBytes: {}",
@@ -264,7 +261,7 @@ impl Actor {
         }
 
         let client = resolve_to_id_addr(rt, &params.address).context_code(
-            ExitCode::USR_ILLEGAL_STATE, // FIXME illegal argument?
+            ExitCode::USR_ILLEGAL_STATE,
             format!("failed to resolve addr {} to ID addr", params.address),
         )?;
 
@@ -277,13 +274,13 @@ impl Actor {
         // Disallow existing verifiers as clients.
         if st.get_verifier_cap(rt.store(), &client)?.is_some() {
             return Err(actor_error!(
-                illegal_argument, // TODO: change to FORBIDDEN?
+                illegal_argument,
                 "cannot restore allowance for verifier {}",
                 client
             ));
         }
 
-        mint(rt, &st.token, &client, &params.deal_size).context(format!(
+        mint(rt, &st.token, &client, &params.deal_size.to_tokens()).context(format!(
             "failed to restore {} to allowance for {}",
             &params.deal_size, &client
         ))
@@ -333,7 +330,7 @@ impl Actor {
         let mut token: Address = Address::new_id(0);
         rt.transaction(|st: &mut State, rt| {
             rt.validate_immediate_caller_is(std::iter::once(&st.root_key))?;
-            token = st.token.clone();
+            token = st.token;
 
             if !is_verifier(rt, st, verifier_1)? {
                 return Err(actor_error!(not_found, "{} is not a verifier", verifier_1));
@@ -381,19 +378,19 @@ impl Actor {
         })?;
 
         // Burn the client's data cap tokens.
-        let balance: DataCap =
-            balance_of(rt, &token, &client).context("failed to fetch balance")?;
-        let burnt = std::cmp::min(balance, params.data_cap_amount_to_remove);
+        let balance = balance_of(rt, &token, &client).context("failed to fetch balance")?;
+        let burnt = std::cmp::min(balance, params.data_cap_amount_to_remove.to_tokens());
         destroy(rt, &token, &client, &burnt)
             .context(format!("failed to destroy {} from allowance for {}", &burnt, &client))?;
 
         Ok(RemoveDataCapReturn {
             verified_client: client, // Changed to the resolved address
-            data_cap_removed: burnt,
+            data_cap_removed: DataCap::from_tokens(&burnt),
         })
     }
 }
 
+// Checks whether an address has a verifier entry (which could be zero).
 fn is_verifier<BS, RT>(rt: &RT, st: &State, address: Address) -> Result<bool, ActorError>
 where
     BS: Blockstore,
@@ -411,6 +408,7 @@ where
     Ok(found)
 }
 
+// Invokes BalanceOf on a token actor.
 fn balance_of<BS, RT>(
     rt: &mut RT,
     token: &Address,
@@ -428,6 +426,7 @@ where
     Ok(x.0 as TokenAmount)
 }
 
+// Invokes Mint on a datacap token actor.
 fn mint<BS, RT>(
     rt: &mut RT,
     token: &Address,
@@ -438,7 +437,7 @@ where
     BS: Blockstore,
     RT: Runtime<BS>,
 {
-    let params = MintParams { to: to.clone(), amount: amount.clone() };
+    let params = MintParams { to: *to, amount: amount.clone() };
     rt.send(
         *token,
         ext::datacap::Method::Mint as u64,
@@ -449,6 +448,7 @@ where
     Ok(())
 }
 
+// Invokes Destroy on a datacap token actor.
 fn destroy<BS, RT>(
     rt: &mut RT,
     token: &Address,
@@ -459,7 +459,7 @@ where
     BS: Blockstore,
     RT: Runtime<BS>,
 {
-    let params = DestroyParams { owner: owner.clone(), amount: amount.clone() };
+    let params = DestroyParams { owner: *owner, amount: amount.clone() };
     let BigIntDe(ret) = rt
         .send(
             *token,

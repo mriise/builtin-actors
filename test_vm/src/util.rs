@@ -17,7 +17,7 @@ use fil_actor_power::{
     CreateMinerParams, CreateMinerReturn, Method as PowerMethod, UpdateClaimedPowerParams,
 };
 use fil_actor_reward::Method as RewardMethod;
-use fil_actor_verifreg::{Method as VerifregMethod, VerifierParams};
+use fil_actor_verifreg::{DataCap, Method as VerifregMethod, VerifierParams};
 use fvm_ipld_bitfield::{BitField, UnvalidatedBitField};
 use fvm_ipld_encoding::{BytesDe, Cbor, RawBytes};
 use fvm_shared::address::{Address, BLS_PUB_LEN};
@@ -520,8 +520,8 @@ pub fn submit_invalid_post(
     apply_ok(v, worker, maddr, TokenAmount::zero(), MinerMethod::SubmitWindowedPoSt as u64, params);
 }
 
-pub fn add_verifier(v: &VM, verifier: Address, data_cap: StoragePower) {
-    let add_verifier_params = VerifierParams { address: verifier, allowance: data_cap };
+pub fn add_verifier(v: &VM, verifier: Address, data_cap: &DataCap) {
+    let add_verifier_params = VerifierParams { address: verifier, allowance: data_cap.clone() };
     // root address is msig, send proposal from root key
     let proposal = ProposeParams {
         to: *VERIFIED_REGISTRY_ACTOR_ADDR,

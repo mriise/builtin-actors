@@ -55,11 +55,11 @@ fn terminate_sectors() {
     );
 
     // publish verified and unverified deals
-    add_verifier(&v, verifier, StoragePower::from_i64(32 << 40_i64).unwrap());
+    add_verifier(&v, verifier, &StoragePower::from_i64(32 << 40_i64).unwrap().into());
 
     let add_client_params = VerifierParams {
         address: verified_client,
-        allowance: StoragePower::from_i64(32 << 40_i64).unwrap(),
+        allowance: StoragePower::from_i64(32 << 40_i64).unwrap().into(),
     };
     apply_ok(
         &v,

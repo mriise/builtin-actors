@@ -16,7 +16,7 @@ use fil_actor_market::{
 };
 use fil_actor_power::{CurrentTotalPowerReturn, Method as PowerMethod};
 use fil_actor_reward::Method as RewardMethod;
-use fil_actor_verifreg::UseBytesParams;
+use fil_actor_verifreg::{DataCap, UseBytesParams};
 use fil_actors_runtime::{
     network::EPOCHS_IN_DAY,
     runtime::{Policy, Runtime},
@@ -473,7 +473,7 @@ pub fn publish_deals(
         if deal.verified_deal {
             let param = RawBytes::serialize(UseBytesParams {
                 address: deal.client,
-                deal_size: BigInt::from(deal.piece_size.0),
+                deal_size: DataCap::from(BigInt::from(deal.piece_size.0)),
             })
             .unwrap();
 
