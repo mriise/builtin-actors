@@ -1,10 +1,9 @@
 // Copyright 2019-2022 ChainSafe Systems
 // SPDX-License-Identifier: Apache-2.0, MIT
 
-use std::cmp::min;
 use crate::commd::CompactCommD;
 use cid::Cid;
-use fil_actors_runtime::{DealWeight, network};
+use fil_actors_runtime::{network, DealWeight};
 use fvm_ipld_bitfield::UnvalidatedBitField;
 use fvm_ipld_encoding::tuple::*;
 use fvm_ipld_encoding::{serde_bytes, BytesDe, Cbor};
@@ -19,6 +18,7 @@ use fvm_shared::sector::{
     StoragePower,
 };
 use fvm_shared::smooth::FilterEstimate;
+use std::cmp::min;
 
 pub type CronEvent = i64;
 
@@ -342,10 +342,14 @@ impl SectorOnChainInfo {
     pub fn possible_proof_expirations(&self, now: ChainEpoch) -> Vec<ChainEpoch> {
         let delta_e = network::EPOCHS_IN_YEAR; // TODO correct value
         if now - self.activation < network::EPOCHS_IN_YEAR / 2 {
-            return vec![std::min(self.expiration, self.activation + network::EPOCHS_IN_YEAR + network::EPOCHS_IN_YEAR / 2)];
+            return vec![std::min(
+                self.expiration,
+                self.activation + network::EPOCHS_IN_YEAR + network::EPOCHS_IN_YEAR / 2,
+            )];
         }
 
-        let quant = QuantSpec{unit: delta_e, offset: self.activation + network::EPOCHS_IN_YEAR / 2};
+        let quant =
+            QuantSpec { unit: delta_e, offset: self.activation + network::EPOCHS_IN_YEAR / 2 };
         let e1 = quant.quantize_up(now);
         let e2 = e1 + delta_e;
 
