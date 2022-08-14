@@ -4,6 +4,7 @@ use cid::multihash::Code;
 use cid::Cid;
 use fil_actor_account::{Actor as AccountActor, State as AccountState};
 use fil_actor_cron::{Actor as CronActor, Entry as CronEntry, State as CronState};
+use fil_actor_datacap::{Actor as DataCapActor, State as DataCapState};
 use fil_actor_init::{Actor as InitActor, ExecReturn, State as InitState};
 use fil_actor_market::{Actor as MarketActor, Method as MarketMethod, State as MarketState};
 use fil_actor_miner::{Actor as MinerActor, State as MinerState};
@@ -236,6 +237,14 @@ impl<'bs> VM<'bs> {
         v.set_actor(
             *VERIFIED_REGISTRY_ACTOR_ADDR,
             actor(*VERIFREG_ACTOR_CODE_ID, verifreg_head, 0, TokenAmount::zero()),
+        );
+
+        // datacap
+        let datacap_head =
+            v.put_store(&DataCapState::new(&v.store, *DATACAP_TOKEN_ACTOR_ADDR).unwrap());
+        v.set_actor(
+            *DATACAP_TOKEN_ACTOR_ADDR,
+            actor(*DATACAP_TOKEN_ACTOR_CODE_ID, datacap_head, 0, TokenAmount::zero()),
         );
 
         // burnt funds
@@ -661,6 +670,7 @@ impl<'invocation, 'bs> InvocationCtx<'invocation, 'bs> {
             Type::Power => PowerActor::invoke_method(self, self.msg.method, &params),
             Type::PaymentChannel => PaychActor::invoke_method(self, self.msg.method, &params),
             Type::VerifiedRegistry => VerifregActor::invoke_method(self, self.msg.method, &params),
+            // FIXME need DataCap here
         };
         if res.is_err() {
             self.v.rollback(prior_root)

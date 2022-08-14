@@ -37,7 +37,7 @@ use crate::runtime::{
     ActorCode, DomainSeparationTag, MessageInfo, Policy, Primitives, Runtime, RuntimePolicy,
     Verifier,
 };
-use crate::{actor_error, ActorError};
+use crate::{actor_error, ActorError, DATACAP_TOKEN_ACTOR_ADDR};
 
 lazy_static! {
     pub static ref SYSTEM_ACTOR_CODE_ID: Cid = make_builtin(b"fil/test/system");
@@ -51,6 +51,7 @@ lazy_static! {
     pub static ref MULTISIG_ACTOR_CODE_ID: Cid = make_builtin(b"fil/test/multisig");
     pub static ref REWARD_ACTOR_CODE_ID: Cid = make_builtin(b"fil/test/reward");
     pub static ref VERIFREG_ACTOR_CODE_ID: Cid = make_builtin(b"fil/test/verifiedregistry");
+    pub static ref DATACAP_TOKEN_ACTOR_CODE_ID: Cid = make_builtin(b"fil/test/datacap");
     pub static ref ACTOR_TYPES: BTreeMap<Cid, Type> = {
         let mut map = BTreeMap::new();
         map.insert(*SYSTEM_ACTOR_CODE_ID, Type::System);
@@ -64,6 +65,7 @@ lazy_static! {
         map.insert(*MULTISIG_ACTOR_CODE_ID, Type::Multisig);
         map.insert(*REWARD_ACTOR_CODE_ID, Type::Reward);
         map.insert(*VERIFREG_ACTOR_CODE_ID, Type::VerifiedRegistry);
+        map.insert(*DATACAP_TOKEN_ACTOR_CODE_ID, Type::VerifiedRegistry); // FIXME oh no, this is going to be hell
         map
     };
     pub static ref ACTOR_CODES: BTreeMap<Type, Cid> = [
@@ -78,6 +80,7 @@ lazy_static! {
         (Type::Multisig, *MULTISIG_ACTOR_CODE_ID),
         (Type::Reward, *REWARD_ACTOR_CODE_ID),
         (Type::VerifiedRegistry, *VERIFREG_ACTOR_CODE_ID),
+        // FIXME ruh-roh, DataCap is missing
     ]
     .into_iter()
     .collect();

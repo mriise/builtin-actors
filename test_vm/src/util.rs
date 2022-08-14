@@ -1,9 +1,11 @@
 use crate::*;
 use fil_actor_cron::Method as CronMethod;
+use fil_actor_datacap::{DestroyParams, Method as DataCapMethod, State as DataCapState};
 use fil_actor_market::{
     ClientDealProposal, DealProposal, Label, Method as MarketMethod, PublishStorageDealsParams,
     PublishStorageDealsReturn,
 };
+
 use fil_actor_miner::{
     aggregate_pre_commit_network_fee, max_prove_commit_duration,
     new_deadline_info_from_offset_and_epoch, Deadline, DeadlineInfo, DeclareFaultsRecoveredParams,
@@ -21,6 +23,7 @@ use fil_actor_verifreg::{DataCap, Method as VerifregMethod, VerifierParams};
 use fvm_ipld_bitfield::{BitField, UnvalidatedBitField};
 use fvm_ipld_encoding::{BytesDe, Cbor, RawBytes};
 use fvm_shared::address::{Address, BLS_PUB_LEN};
+use fvm_shared::bigint::bigint_ser::BigIntDe;
 use fvm_shared::crypto::signature::{Signature, SignatureType};
 use fvm_shared::econ::TokenAmount;
 use fvm_shared::error::ExitCode;
@@ -538,17 +541,22 @@ pub fn add_verifier(v: &VM, verifier: Address, data_cap: &DataCap) {
         MultisigMethod::Propose as u64,
         proposal,
     );
-    let verifreg_invoc = ExpectInvocation {
-        to: *VERIFIED_REGISTRY_ACTOR_ADDR,
-        method: VerifregMethod::AddVerifier as u64,
-        params: Some(serialize(&add_verifier_params, "verifreg add verifier params").unwrap()),
-        subinvocs: Some(vec![]),
-        ..Default::default()
-    };
     ExpectInvocation {
         to: TEST_VERIFREG_ROOT_ADDR,
         method: MultisigMethod::Propose as u64,
-        subinvocs: Some(vec![verifreg_invoc]),
+        subinvocs: Some(vec![ExpectInvocation {
+            to: *VERIFIED_REGISTRY_ACTOR_ADDR,
+            method: VerifregMethod::AddVerifier as u64,
+            params: Some(serialize(&add_verifier_params, "verifreg add verifier params").unwrap()),
+            subinvocs: Some(vec![ExpectInvocation {
+                to: *DATACAP_TOKEN_ACTOR_ADDR,
+                method: DataCapMethod::BalanceOf as u64,
+                params: Some(serialize(&verifier, "balance of params").unwrap()),
+                code: Some(ExitCode::OK),
+                ..Default::default()
+            }]),
+            ..Default::default()
+        }]),
         ..Default::default()
     }
     .matches(v.take_invocations().last().unwrap());

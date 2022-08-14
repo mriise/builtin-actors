@@ -1,3 +1,6 @@
+use fil_actor_datacap::{
+    DestroyParams, Method as DataCapMethod, MintParams, State as DataCapState,
+};
 use fil_actor_verifreg::{
     AddVerifierClientParams, DataCap, RemoveDataCapParams, RemoveDataCapRequest,
     RemoveDataCapReturn, SIGNATURE_DOMAIN_SEPARATION_REMOVE_DATA_CAP,
@@ -5,16 +8,17 @@ use fil_actor_verifreg::{
 use fil_actor_verifreg::{AddrPairKey, Method as VerifregMethod};
 use fil_actor_verifreg::{RemoveDataCapProposal, RemoveDataCapProposalID, State as VerifregState};
 use fil_actors_runtime::cbor::serialize;
-use fil_actors_runtime::{make_map_with_root_and_bitwidth, VERIFIED_REGISTRY_ACTOR_ADDR};
+use fil_actors_runtime::{
+    make_map_with_root_and_bitwidth, DATACAP_TOKEN_ACTOR_ADDR, VERIFIED_REGISTRY_ACTOR_ADDR,
+};
 use fvm_ipld_blockstore::MemoryBlockstore;
 use fvm_ipld_encoding::to_vec;
-use fvm_shared::bigint::bigint_ser::BigIntDe;
-use fvm_shared::bigint::{BigInt, Zero};
+use fvm_shared::bigint::Zero;
 use fvm_shared::crypto::signature::{Signature, SignatureType};
 use fvm_shared::econ::TokenAmount;
 use fvm_shared::sector::StoragePower;
 use fvm_shared::HAMT_BIT_WIDTH;
-use std::ops::{Div, Sub};
+use std::ops::Sub;
 use test_vm::util::{add_verifier, apply_ok, create_accounts};
 use test_vm::{ExpectInvocation, TEST_VERIFREG_ROOT_ADDR, VM};
 
@@ -29,7 +33,7 @@ fn remove_datacap_simple_successful_path() {
     let verifier2_id_addr = v.normalize_address(&verifier2).unwrap();
     let verified_client_id_addr = v.normalize_address(&verified_client).unwrap();
     let verifier_allowance = DataCap::from(StoragePower::from(2 * 1048576));
-    let allowance_to_remove = DataCap::from(StoragePower::from(1 * 1048576));
+    let allowance_to_remove = DataCap::from(StoragePower::from(1048576));
 
     // register verifier1 and verifier2
     add_verifier(&v, verifier1, &verifier_allowance);
@@ -40,6 +44,7 @@ fn remove_datacap_simple_successful_path() {
         AddVerifierClientParams { address: verified_client, allowance: verifier_allowance.clone() };
     let add_verified_client_params_ser =
         serialize(&add_verified_client_params, "add verifier params").unwrap();
+    let mint_params = MintParams { to: verified_client, amount: verifier_allowance.to_tokens() };
     apply_ok(
         &v,
         verifier1,
@@ -53,7 +58,13 @@ fn remove_datacap_simple_successful_path() {
         to: *VERIFIED_REGISTRY_ACTOR_ADDR,
         method: VerifregMethod::AddVerifiedClient as u64,
         params: Some(add_verified_client_params_ser),
-        subinvocs: Some(vec![]),
+        subinvocs: Some(vec![ExpectInvocation {
+            to: *DATACAP_TOKEN_ACTOR_ADDR,
+            method: DataCapMethod::Mint as u64,
+            params: Some(serialize(&mint_params, "mint params").unwrap()),
+            subinvocs: None,
+            ..Default::default()
+        }]),
         ..Default::default()
     }
     .matches(v.take_invocations().last().unwrap());
@@ -70,7 +81,6 @@ fn remove_datacap_simple_successful_path() {
     let verifier2_data_cap = verifiers.get(&verifier2_id_addr.to_bytes()).unwrap().unwrap();
     assert_eq!(verifier_allowance, *verifier2_data_cap);
 
-    // FIXME inspect datacap token state
     // let mut verified_clients = make_map_with_root_and_bitwidth::<_, BigIntDe>(
     //     &v_st.verified_clients,
     //     &store,
@@ -81,6 +91,10 @@ fn remove_datacap_simple_successful_path() {
     // let BigIntDe(data_cap) =
     //     verified_clients.get(&verified_client_id_addr.to_bytes()).unwrap().unwrap();
     // assert_eq!(*data_cap, verifier_allowance);
+
+    let dc_st = v.get_state::<DataCapState>(*DATACAP_TOKEN_ACTOR_ADDR).unwrap();
+    let balance = dc_st.balance(&store, verified_client_id_addr.id().unwrap()).unwrap();
+    assert_eq!(balance, verifier_allowance.to_tokens());
 
     let mut proposal_ids = make_map_with_root_and_bitwidth::<_, RemoveDataCapProposalID>(
         &v_st.remove_data_cap_proposal_ids,
@@ -135,6 +149,9 @@ fn remove_datacap_simple_successful_path() {
 
     let mut remove_datacap_params_ser =
         serialize(&remove_datacap_params, "add verifier params").unwrap();
+    // let destroy_params =
+    //     DestroyParams { owner: verified_client, amount: allowance_to_remove.to_tokens() };
+    // let destroy_params_ser = serialize(&destroy_params, "destroy params").unwrap();
 
     let remove_datacap_ret: RemoveDataCapReturn = apply_ok(
         &v,
@@ -159,9 +176,6 @@ fn remove_datacap_simple_successful_path() {
     assert_eq!(verified_client_id_addr, remove_datacap_ret.verified_client);
     assert_eq!(allowance_to_remove, remove_datacap_ret.data_cap_removed);
 
-    v_st = v.get_state::<VerifregState>(*VERIFIED_REGISTRY_ACTOR_ADDR).unwrap();
-
-    // FIXME inspect datacap token
     // confirm client's allowance has fallen by half
     // verified_clients = make_map_with_root_and_bitwidth::<_, BigIntDe>(
     //     &v_st.verified_clients,
@@ -175,6 +189,11 @@ fn remove_datacap_simple_successful_path() {
     //
     // assert_eq!(*data_cap, verifier_allowance.sub(allowance_to_remove.clone()));
 
+    let dc_st = v.get_state::<DataCapState>(*DATACAP_TOKEN_ACTOR_ADDR).unwrap();
+    let balance = dc_st.balance(&store, verified_client_id_addr.id().unwrap()).unwrap();
+    assert_eq!(balance, verifier_allowance.sub(&allowance_to_remove).to_tokens());
+
+    v_st = v.get_state::<VerifregState>(*VERIFIED_REGISTRY_ACTOR_ADDR).unwrap();
     // confirm proposalIds has changed as expected
     proposal_ids =
         make_map_with_root_and_bitwidth(&v_st.remove_data_cap_proposal_ids, &store, HAMT_BIT_WIDTH)
@@ -254,8 +273,7 @@ fn remove_datacap_simple_successful_path() {
     assert_eq!(verified_client_id_addr, remove_datacap_ret.verified_client);
     assert_eq!(allowance_to_remove, remove_datacap_ret.data_cap_removed);
 
-    // FIXME inspect datacap token
-    // confirm client has been removed entirely
+    // confirm client has no balance
     // v_st = v.get_state::<VerifregState>(*VERIFIED_REGISTRY_ACTOR_ADDR).unwrap();
     // verified_clients = make_map_with_root_and_bitwidth::<_, BigIntDe>(
     //     &v_st.verified_clients,
@@ -265,6 +283,10 @@ fn remove_datacap_simple_successful_path() {
     // .unwrap();
     //
     // assert!(verified_clients.get(&verified_client_id_addr.to_bytes()).unwrap().is_none());
+
+    let dc_st = v.get_state::<DataCapState>(*DATACAP_TOKEN_ACTOR_ADDR).unwrap();
+    let balance = dc_st.balance(&store, verified_client_id_addr.id().unwrap()).unwrap();
+    assert_eq!(balance, TokenAmount::zero());
 
     // confirm proposalIds has changed as expected
     proposal_ids =
